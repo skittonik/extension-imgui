@@ -24,6 +24,8 @@
 #include <dmsdk/sdk.h>
 
 #include "extension_imgui.h"
+#include "gizmo2d.h"
+#include "imguizmo/ImGuizmo.h"
 
 #if !defined(DM_HEADLESS)
 
@@ -3421,6 +3423,169 @@ static int imgui_SetScrollHereY(lua_State *L)
     return 0;
 }
 
+// ----------------------------
+// ----- GIZMO ----------------
+// ----------------------------
+//
+// Two of them, because 2D and 3D want different things. gizmo_2d is a
+// screen-space widget (see src/gizmo2d.h) for dragging a point and a uniform
+// scale around a 2D scene. gizmo_3d wraps ImGuizmo, which manipulates a model
+// matrix inside a view/projection pair.
+
+/** Gizmo2D
+ * A screen-space move/scale gizmo drawn over everything: a cyan square at the
+ * origin (free move), red/green axis arrows, and a blue square for scale.
+ * Coordinates are ImGui screen pixels (y down).
+ * @name gizmo_2d
+ * @string id
+ * @number x
+ * @number y
+ * @number [scale]
+ * @number [size] widget scale, 1.0 by default
+ * @number [flags] GIZMOFLAGS_*
+ * @treturn boolean changed
+ * @treturn number x
+ * @treturn number y
+ * @treturn number scale
+ */
+static int imgui_Gizmo2D(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 4);
+    imgui_NewFrame();
+    const char* id = luaL_checkstring(L, 1);
+    float x = (float)luaL_checknumber(L, 2);
+    float y = (float)luaL_checknumber(L, 3);
+    float scale = lua_isnumber(L, 4) ? (float)lua_tonumber(L, 4) : 1.0f;
+    float size = lua_isnumber(L, 5) ? (float)lua_tonumber(L, 5) : 1.0f;
+    int flags = lua_isnumber(L, 6) ? (int)lua_tointeger(L, 6) : 0;
+
+    bool changed = Gizmo2D::Manipulate(id, &x, &y, &scale, size, flags);
+    lua_pushboolean(L, changed);
+    lua_pushnumber(L, x);
+    lua_pushnumber(L, y);
+    lua_pushnumber(L, scale);
+    return 4;
+}
+
+/** Gizmo2DIsUsing
+ * True while a 2D gizmo handle is held, so the host can swallow the click.
+ * @name gizmo_2d_is_using
+ * @treturn boolean is_using
+ */
+static int imgui_Gizmo2DIsUsing(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+    lua_pushboolean(L, Gizmo2D::IsUsing());
+    return 1;
+}
+
+/** GizmoSetRect
+ * The rectangle the 3D gizmo projects into; usually the whole window.
+ * @name gizmo_set_rect
+ * @number x
+ * @number y
+ * @number width
+ * @number height
+ */
+static int imgui_GizmoSetRect(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    imgui_NewFrame();
+    ImGuizmo::SetRect((float)luaL_checknumber(L, 1), (float)luaL_checknumber(L, 2),
+        (float)luaL_checknumber(L, 3), (float)luaL_checknumber(L, 4));
+    return 0;
+}
+
+/** GizmoBeginFrame
+ * Must be called once per frame before gizmo_3d.
+ * @name gizmo_begin_frame
+ */
+static int imgui_GizmoBeginFrame(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    imgui_NewFrame();
+    ImGuizmo::BeginFrame();
+    ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
+    return 0;
+}
+
+static void imgui_MatrixToFloats(const dmVMath::Matrix4& m, float* out)
+{
+    for (int col = 0; col < 4; ++col)
+    {
+        const dmVMath::Vector4& v = m.getCol(col);
+        out[col * 4 + 0] = v.getX();
+        out[col * 4 + 1] = v.getY();
+        out[col * 4 + 2] = v.getZ();
+        out[col * 4 + 3] = v.getW();
+    }
+}
+
+static void imgui_FloatsToMatrix(const float* in, dmVMath::Matrix4& m)
+{
+    for (int col = 0; col < 4; ++col)
+    {
+        m.setCol(col, dmVMath::Vector4(in[col * 4 + 0], in[col * 4 + 1], in[col * 4 + 2], in[col * 4 + 3]));
+    }
+}
+
+/** Gizmo3D
+ * ImGuizmo's model-matrix manipulator. Returns the edited model matrix.
+ * @name gizmo_3d
+ * @param view matrix4
+ * @param projection matrix4
+ * @param model matrix4
+ * @number [operation] GIZMOOPERATION_*
+ * @number [mode] GIZMOMODE_*
+ * @treturn boolean changed
+ * @treturn matrix4 model
+ */
+static int imgui_Gizmo3D(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 2);
+    imgui_NewFrame();
+    dmVMath::Matrix4* view = dmScript::CheckMatrix4(L, 1);
+    dmVMath::Matrix4* projection = dmScript::CheckMatrix4(L, 2);
+    dmVMath::Matrix4* model = dmScript::CheckMatrix4(L, 3);
+    ImGuizmo::OPERATION operation = (ImGuizmo::OPERATION)(lua_isnumber(L, 4) ? (int)lua_tointeger(L, 4) : (int)ImGuizmo::TRANSLATE);
+    ImGuizmo::MODE mode = (ImGuizmo::MODE)(lua_isnumber(L, 5) ? (int)lua_tointeger(L, 5) : (int)ImGuizmo::WORLD);
+
+    float view_f[16], projection_f[16], model_f[16];
+    imgui_MatrixToFloats(*view, view_f);
+    imgui_MatrixToFloats(*projection, projection_f);
+    imgui_MatrixToFloats(*model, model_f);
+
+    bool changed = ImGuizmo::Manipulate(view_f, projection_f, operation, mode, model_f);
+
+    dmVMath::Matrix4 result;
+    imgui_FloatsToMatrix(model_f, result);
+    lua_pushboolean(L, changed);
+    dmScript::PushMatrix4(L, result);
+    return 2;
+}
+
+/** Gizmo3DIsUsing
+ * @name gizmo_3d_is_using
+ * @treturn boolean is_using
+ */
+static int imgui_Gizmo3DIsUsing(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+    lua_pushboolean(L, ImGuizmo::IsUsing());
+    return 1;
+}
+
+/** Gizmo3DIsOver
+ * @name gizmo_3d_is_over
+ * @treturn boolean is_over
+ */
+static int imgui_Gizmo3DIsOver(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+    lua_pushboolean(L, ImGuizmo::IsOver());
+    return 1;
+}
+
 
 // ----------------------------
 // ----- FONT -----------------
@@ -4081,6 +4246,14 @@ static const luaL_reg Module_methods[] =
     {"get_frame_height", imgui_GetFrameHeight},
 
     {"set_scroll_here_y", imgui_SetScrollHereY},
+
+    {"gizmo_2d", imgui_Gizmo2D},
+    {"gizmo_2d_is_using", imgui_Gizmo2DIsUsing},
+    {"gizmo_begin_frame", imgui_GizmoBeginFrame},
+    {"gizmo_set_rect", imgui_GizmoSetRect},
+    {"gizmo_3d", imgui_Gizmo3D},
+    {"gizmo_3d_is_using", imgui_Gizmo3DIsUsing},
+    {"gizmo_3d_is_over", imgui_Gizmo3DIsOver},
     {0, 0}
 };
 
@@ -5699,6 +5872,53 @@ static void LuaInit(lua_State* L)
      * @field DIR_DOWN
      */
      lua_setfieldstringint(L, "DIR_DOWN", ImGuiDir_Down);
+
+    /**
+     * GIZMOFLAGS_NONE
+     * @field GIZMOFLAGS_NONE
+     */
+     lua_setfieldstringint(L, "GIZMOFLAGS_NONE", Gizmo2D::FLAGS_NONE);
+    /**
+     * GIZMOFLAGS_NOSCALE Hide the 2D gizmo's scale handle
+     * @field GIZMOFLAGS_NOSCALE
+     */
+     lua_setfieldstringint(L, "GIZMOFLAGS_NOSCALE", Gizmo2D::FLAGS_NO_SCALE);
+    /**
+     * GIZMOFLAGS_NOAXES Hide the 2D gizmo's axis arrows
+     * @field GIZMOFLAGS_NOAXES
+     */
+     lua_setfieldstringint(L, "GIZMOFLAGS_NOAXES", Gizmo2D::FLAGS_NO_AXES);
+
+    /**
+     * GIZMOOPERATION_TRANSLATE
+     * @field GIZMOOPERATION_TRANSLATE
+     */
+     lua_setfieldstringint(L, "GIZMOOPERATION_TRANSLATE", ImGuizmo::TRANSLATE);
+    /**
+     * GIZMOOPERATION_ROTATE
+     * @field GIZMOOPERATION_ROTATE
+     */
+     lua_setfieldstringint(L, "GIZMOOPERATION_ROTATE", ImGuizmo::ROTATE);
+    /**
+     * GIZMOOPERATION_SCALE
+     * @field GIZMOOPERATION_SCALE
+     */
+     lua_setfieldstringint(L, "GIZMOOPERATION_SCALE", ImGuizmo::SCALE);
+    /**
+     * GIZMOOPERATION_UNIVERSAL
+     * @field GIZMOOPERATION_UNIVERSAL
+     */
+     lua_setfieldstringint(L, "GIZMOOPERATION_UNIVERSAL", ImGuizmo::UNIVERSAL);
+    /**
+     * GIZMOMODE_LOCAL
+     * @field GIZMOMODE_LOCAL
+     */
+     lua_setfieldstringint(L, "GIZMOMODE_LOCAL", ImGuizmo::LOCAL);
+    /**
+     * GIZMOMODE_WORLD
+     * @field GIZMOMODE_WORLD
+     */
+     lua_setfieldstringint(L, "GIZMOMODE_WORLD", ImGuizmo::WORLD);
 
     /**
      * GLYPH_RANGES_DEFAULT
