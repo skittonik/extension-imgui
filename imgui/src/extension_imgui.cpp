@@ -3467,6 +3467,51 @@ static int imgui_Gizmo2D(lua_State* L)
     return 4;
 }
 
+/** GetMousePos
+ * @name get_mouse_pos
+ * @treturn number x
+ * @treturn number y
+ */
+static int imgui_GetMousePos(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 2);
+    imgui_NewFrame();
+    ImVec2 pos = ImGui::GetMousePos();
+    lua_pushnumber(L, pos.x);
+    lua_pushnumber(L, pos.y);
+    return 2;
+}
+
+/** PickScreenColor
+ * Reads one pixel back out of the default framebuffer - an eyedropper for
+ * anything already on screen, which ImGui's colour picker has no way to do.
+ * Coordinates are ImGui screen pixels (y down); GL reads from the bottom, so
+ * the display height flips it.
+ * @name pick_screen_color
+ * @number x
+ * @number y
+ * @treturn number r 0..1
+ * @treturn number g 0..1
+ * @treturn number b 0..1
+ */
+static int imgui_PickScreenColor(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 3);
+    float x = (float)luaL_checknumber(L, 1);
+    float y = (float)luaL_checknumber(L, 2);
+    unsigned char pixel[4] = { 0, 0, 0, 255 };
+#if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
+    ImGuiIO& io = ImGui::GetIO();
+    GLint read_y = (GLint)(io.DisplaySize.y - y);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels((GLint)x, read_y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+#endif
+    lua_pushnumber(L, pixel[0] / 255.0);
+    lua_pushnumber(L, pixel[1] / 255.0);
+    lua_pushnumber(L, pixel[2] / 255.0);
+    return 3;
+}
+
 /** Gizmo2DIsUsing
  * True while a 2D gizmo handle is held, so the host can swallow the click.
  * @name gizmo_2d_is_using
@@ -4246,6 +4291,9 @@ static const luaL_reg Module_methods[] =
     {"get_frame_height", imgui_GetFrameHeight},
 
     {"set_scroll_here_y", imgui_SetScrollHereY},
+
+    {"get_mouse_pos", imgui_GetMousePos},
+    {"pick_screen_color", imgui_PickScreenColor},
 
     {"gizmo_2d", imgui_Gizmo2D},
     {"gizmo_2d_is_using", imgui_Gizmo2DIsUsing},
