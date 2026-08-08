@@ -3725,6 +3725,37 @@ static int imgui_FontAddTTFFile(lua_State * L)
     return 1;
 }
 
+/** FontAddRobotoMono
+ * @name font_add_roboto_mono
+ * @number [font_size]
+ * @treturn number font_index
+ */
+static int imgui_FontAddRobotoMono(lua_State * L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+    float font_size = 16.0f;
+    if (lua_isnumber(L, 1))
+    {
+        font_size = luaL_checknumber(L, 1);
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    ImFontConfig font_cfg;
+    font_cfg.FontDataOwnedByAtlas = false;
+    ImFont* font = io.Fonts->AddFontFromMemoryTTF((void*)roboto_mono_regular_ttf, roboto_mono_regular_ttf_size, font_size, &font_cfg, io.Fonts->GetGlyphRangesCyrillic());
+    // Put font in map.
+    if(font != NULL)
+    {
+        int index = imgui_StoreFont(font);
+        lua_pushinteger(L, index);
+    }
+    else
+    {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
 /** FontAddTTFData
  * @name font_add_ttf_data
  * @string ttf_data
@@ -4014,9 +4045,7 @@ static int imgui_SetDefaults(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     ImGuiIO& io = ImGui::GetIO();
-    ImFontConfig font_cfg;
-    font_cfg.FontDataOwnedByAtlas = false;
-    ImFont* def = io.Fonts->AddFontFromMemoryTTF((void*)roboto_mono_regular_ttf, roboto_mono_regular_ttf_size, 16.0f, &font_cfg, io.Fonts->GetGlyphRangesCyrillic());
+    ImFont* def = io.Fonts->AddFontDefault();
     imgui_StoreFont(def);
     return 0;
 }
@@ -4121,6 +4150,7 @@ static const luaL_reg Module_methods[] =
 
     {"font_add_ttf_file", imgui_FontAddTTFFile},
     {"font_add_ttf_data", imgui_FontAddTTFData},
+    {"font_add_roboto_mono", imgui_FontAddRobotoMono},
     {"font_push", imgui_FontPush},
     {"font_pop", imgui_FontPop},
     {"font_scale", imgui_FontScale},

@@ -1403,6 +1403,11 @@ function imgui.font_add_ttf_file(filename, size, glyph_ranges) end
 ---@return integer? font_id
 function imgui.font_add_ttf_data(data, data_size, font_size, font_pixels, glyph_ranges) end
 
+--- Adds the embedded Roboto Mono (Cyrillic) font, bundled with the extension. No external file needed.
+---@param font_size? number defaults to 16
+---@return integer? font_id
+function imgui.font_add_roboto_mono(font_size) end
+
 ---@param font_id integer
 function imgui.font_push(font_id) end
 

@@ -1755,6 +1755,18 @@
     - name: font_index
       type: number
 
+  - name: font_add_roboto_mono
+    type: function
+    desc: |
+      Adds the embedded Roboto Mono (Cyrillic) font, bundled with the extension. No external file needed.
+    parameters:
+    - name: font_size
+      type: number
+      optional: true
+    returns:
+    - name: font_index
+      type: number
+
   - name: font_push
     type: function
     desc: |
