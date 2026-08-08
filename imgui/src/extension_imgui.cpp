@@ -26,6 +26,7 @@
 #include "extension_imgui.h"
 #include "gizmo2d.h"
 #include "imguizmo/ImGuizmo.h"
+#include "roboto_mono_regular.embed.h"
 
 #if !defined(DM_HEADLESS)
 
@@ -4013,7 +4014,9 @@ static int imgui_SetDefaults(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     ImGuiIO& io = ImGui::GetIO();
-    ImFont* def = io.Fonts->AddFontDefault();
+    ImFontConfig font_cfg;
+    font_cfg.FontDataOwnedByAtlas = false;
+    ImFont* def = io.Fonts->AddFontFromMemoryTTF((void*)roboto_mono_regular_ttf, roboto_mono_regular_ttf_size, 16.0f, &font_cfg, io.Fonts->GetGlyphRangesCyrillic());
     imgui_StoreFont(def);
     return 0;
 }
