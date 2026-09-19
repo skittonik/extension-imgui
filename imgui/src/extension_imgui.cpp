@@ -10,6 +10,14 @@
 #include "imgui/imgui.h"
 #include "imgui/imconfig.h"
 
+#include <dmsdk/sdk.h>
+
+#include "extension_imgui.h"
+
+// Headless and release builds get the empty stub at the end of this file: no ImGui,
+// no renderer, no `imgui` Lua module (imconfig.h sets IMGUI_DISABLE for release).
+#if !defined(DM_HEADLESS) && !defined(DM_RELEASE)
+
 // set in imconfig.h
 #if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
 #include <GL/gl3w.h>
@@ -21,14 +29,9 @@
 #endif
 #include "imgui/imgui_impl_opengl3.h"
 
-#include <dmsdk/sdk.h>
-
-#include "extension_imgui.h"
 #include "gizmo2d.h"
 #include "imguizmo/ImGuizmo.h"
 #include "roboto_mono_regular.embed.h"
-
-#if !defined(DM_HEADLESS)
 
 #define MODULE_NAME "imgui"
 

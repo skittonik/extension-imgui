@@ -14,6 +14,12 @@
 
 #pragma once
 
+// A release build carries no ImGui: every ImGui source compiles to nothing and the
+// extension registers an empty stub without the Lua module (extension_imgui.cpp).
+#if defined(DM_RELEASE)
+  #define IMGUI_DISABLE
+#endif
+
 #if defined(DM_PLATFORM_HTML5)
   #define IMGUI_IMPL_OPENGL_ES2
   #undef GL_ES_VERSION_2_0

@@ -1,3 +1,6 @@
+// Empty in release: see imconfig.h.
+#if !defined(DM_RELEASE)
+
 /*
  * This file was generated with gl3w_gen.py, part of gl3w
  * (hosted at https://github.com/skaslev/gl3w)
@@ -849,3 +852,5 @@ static void load_procs(GL3WGetProcAddressProc proc)
 }
 
 #endif
+
+#endif // !DM_RELEASE

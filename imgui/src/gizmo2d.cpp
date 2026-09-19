@@ -1,3 +1,6 @@
+// Empty in release: see imconfig.h.
+#if !defined(DM_RELEASE)
+
 #include "imgui/imgui.h"
 #include "gizmo2d.h"
 
@@ -214,3 +217,5 @@ bool IsUsing()
 }
 
 }
+
+#endif // !DM_RELEASE
