@@ -73,7 +73,8 @@ static char* g_imgui_TextBuffer     = 0;
 static dmArray<ImFont*> g_imgui_Fonts;
 static dmArray<ImgObject> g_imgui_Images;
 static bool g_VerifyGraphicsCalls   = false;
-static bool g_RenderingEnabled      = true;
+// Off until the game asks: an idle ImGui costs no frame at all (see imgui_Draw).
+static bool g_RenderingEnabled      = false;
 
 #define DEFOLD_IMGUI_MAX_DRAW_CALLBACKS 16
 
@@ -126,6 +127,18 @@ extern "C" DM_DLLEXPORT void DefoldImGui_UnregisterDrawCallback(DefoldImGuiDrawC
             g_DrawCallbacks[i].m_UserData = 0;
         }
     }
+}
+
+static bool imgui_HasDrawCallbacks()
+{
+    for (uint32_t i = 0; i < DEFOLD_IMGUI_MAX_DRAW_CALLBACKS; ++i)
+    {
+        if (g_DrawCallbacks[i].m_Callback)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 static void imgui_InvokeDrawCallbacks()
@@ -3884,6 +3897,13 @@ static int imgui_GetFontSize(lua_State* L)
 // ----------------------------
 static dmExtension::Result imgui_Draw(dmExtension::Params* params)
 {
+    // Nothing to show and nobody drew this frame: skip ImGui entirely rather than run an
+    // empty NewFrame/Render every frame. A frame some Lua call already opened is closed.
+    if (!g_RenderingEnabled && !g_imgui_NewFrame && !imgui_HasDrawCallbacks())
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     imgui_NewFrame();
 
     imgui_InvokeDrawCallbacks();
@@ -4088,6 +4108,9 @@ static void imgui_Init(float width, float height)
 
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2(width, height);
+    // No imgui.ini next to the project unless the game names one with set_ini_filename:
+    // otherwise it is written on every exit, even by a game that never opened a window.
+    io.IniFilename = NULL;
 
     // init keymap list
     // We will be sending the correct ImGuiKey_ enums from Lua

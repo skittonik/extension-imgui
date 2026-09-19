@@ -16,6 +16,8 @@ function init(self)
 	self.show_close_window = false
 
 	if imgui then
+		-- The fork keeps ImGui idle until a game turns rendering on.
+		imgui.set_rendering_enabled(true)
 		imgui.set_ini_filename()
 
 		style.set()
